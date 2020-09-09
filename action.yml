@@ -1,0 +1,23 @@
+# action.yml
+name: 'Virtual Dev Environments'
+description: 'Create virtual dev environments from branch'
+inputs:
+  branch:
+    description: 'branch used as namespace in k8s'
+    required: true
+    default: ''
+  aws_access_key_id:
+    description: 'aws access key id'
+    required: true
+    default: ''
+  aws_secret_access_key:
+    description: 'aws secret access key'
+    required: true
+    default: ''
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.branch }}
+    - ${{ inputs.aws_access_key_id }}
+    - ${{ inputs.aws_secret_access_key }}
