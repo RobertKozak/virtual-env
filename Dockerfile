@@ -48,5 +48,6 @@ COPY --from=build bin/remove-branch /usr/bin/
 COPY --from=build bin/deploy-service /usr/bin/
 COPY --from=build service/ ./service/
 COPY --from=build /usr/local/bin/helm /usr/bin/
+COPY --from=build ./entrypoint.sh ./entrypoint.sh
 
-ENTRYPOINT ["/bin/sh"]
+ENTRYPOINT ["./entrypoint.sh"]
