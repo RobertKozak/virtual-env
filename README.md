@@ -1,4 +1,4 @@
-# add-branch
+# virtual-env
 
 This action creates a namespace in k8s based on the branch name
 
