@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.app_name }}
+  annotations:
+    chromeriver.com/cluster: c4
+    chromeriver.com/env: dev
+  labels:
+    app: {{ .Values.app_name }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app: {{ .Values.app_name }}

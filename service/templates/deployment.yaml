@@ -1,0 +1,141 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.app_name }}
+  annotations:
+    chromeriver.com/cluster: "{{ .Values.env.crcluster }}"
+    chromeriver.com/env: "{{ .Values.env.crenv }}"
+  labels:
+    app: {{ .Values.app_name }}
+spec:
+  progressDeadlineSeconds: 1800
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.app_name }}
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9100"
+      labels:
+        app: {{ .Values.app_name }}
+    spec:
+      dnsPolicy: {{ .Values.dnsPolicy }}
+      {{- if .Values.nodeSelector }}
+      nodeSelector: {{ .Values.nodeSelector -}}
+      {{ end }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ .Values.app_name }}
+              topologyKey: failure-domain.beta.kubernetes.io/zone
+            weight: 100
+{{ if .Values.contrast.enabled }}
+      initContainers:
+      - name: contrast
+        image: chromeriver/contrast
+        imagePullPolicy: Always
+        volumeMounts:
+        - name: contrast-agent
+          mountPath: /data
+{{ end }}
+      containers:
+      - name: {{ .Values.app_name }}
+        env:
+        - name: properties_checksum
+          value: {{ include (print $.Template.BasePath "/props-secret.yaml") . | sha256sum }}
+        - name: k8s_name
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: k8s_namespace
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: k8s_pod_ip
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: INSTANA_SERVICE_NAME
+          value: {{ .Values.app_name }}-{{ .Values.env.crcluster }}-{{ .Values.env.crenv }}
+        - name: INSTANA_AGENT_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: crSpringServer
+          value: {{ .Values.app_name }}
+        - name: SPRING_CONFIG_NAME
+          value: {{ .Values.app_name }}
+        - name: SPRING_CONFIG_LOCATION
+          value: /opt/props/
+        - name: SPRING_PROFILES_ACTIVE
+          value: {{ .Values.env.crenv }}
+        - name: CR_PROPERTIES_FILES_LOCATION
+          value: /opt/props
+        - name: crCluster
+          value: {{ .Values.env.crcluster }}
+        - name: crEnv
+          value: {{ .Values.env.crenv }}
+        - name: JAVAAGENT
+          value: {{ .Values.env.javaagent }} {{ if .Values.contrast.enabled }} -javaagent:/opt/contrast/contrast.jar -Dcontrast.enabled=true -Dcontrast.dir=/opt/contrast -Dcontrast.level=error -Dcontrast.classpath.libs=false -Dcontrast.server={{ .Values.app_name }}.{{ .Values.env.crenv }} -Dcontrast.override.appname={{ .Values.app_name }} -Dcontrast.rootapp={{ .Values.app_name }} -Dcontrast.inspect.allclasses=false -Dcontrast.process.codesources=false {{ end }}
+        {{ if .Values.env.NODE_OPTIONS }}
+        - name: NODE_OPTIONS
+          value: {{ .Values.env.NODE_OPTIONS }}
+        {{ end }}
+
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        {{- if .Values.profiling }}
+        - name: jmx
+          containerPort: 9010
+          protocol: TCP
+        {{- end }}
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.readinessProbe.successThreshold }}
+          failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: {{ add .Values.readinessProbe.initialDelaySeconds 60 }}
+          periodSeconds: {{ mul .Values.readinessProbe.periodSeconds 2 }}
+          timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.readinessProbe.successThreshold }}
+          failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+        resources:
+{{ toYaml .Values.resources | trimSuffix "\n" | indent 10 }}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - name: props
+          mountPath: /opt/props/
+      imagePullSecrets:
+      - name: cr-private-registry
+      volumes:
+      - name: props
+        secret:
+          secretName: {{ .Values.app_name }}-props

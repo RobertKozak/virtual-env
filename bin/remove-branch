@@ -1,0 +1,29 @@
+#!/bin/bash
+
+BRANCH=$1
+export AWS_ACCESS_KEY_ID=$2
+export AWS_SECRET_ACCESS_KEY=$3
+export AWS_DEFAULT_REGION=us-east-1
+
+if [[ -z "$BRANCH" ]] || [[ -z "$AWS_ACCESS_KEY_ID" ]] || [[ -z "$AWS_SECRET_ACCESS_KEY" ]]; then
+   echo -e "\nUsage:\n   remove-branch <branch-name> <aws-access_key_id> <aws_secret_access_key>"
+   exit 1
+fi
+
+if [[ ! $(kubectl get configmap/virtual-env-config -n default 2>&1 > /dev/null) ]]; then
+ 
+    VALUE=$(kubectl get configmap/virtual-env-config -n default -o "jsonpath={.data['${BRANCH}']}")
+    ((VALUE--))
+
+    if [[ -z "$VALUE" ]] || [[ $VALUE -lt 1 ]]; then
+        if [[ $(kubectl get namespace $BRANCH --ignore-not-found=true) ]] ; then
+            echo "No more references. Removing namespace $BRANCH"
+            kubectl delete namespace $BRANCH 2>&1 > /dev/null
+        fi
+        VALUE=0
+   fi
+
+    echo "Updating count for $BRANCH to $VALUE"
+    kubectl patch configmap/virtual-env-config -n default --type merge -p '{"data":{"'${BRANCH}'":"'${VALUE}'"}}' 2>&1 > /dev/null
+fi
+

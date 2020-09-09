@@ -1,0 +1,69 @@
+#!/bin/bash
+
+# set variables
+SERVICE_NAME=$1
+BRANCH=$2
+export AWS_ACCESS_KEY_ID=$3
+export AWS_SECRET_ACCESS_KEY=$4
+export AWS_DEFAULT_REGION=us-east-1
+VAULT_PASSWORD=$5
+CR_CLUSTER=c4-dev
+IMAGE_TAG="2.320.0"
+
+PROPERTIES_TEMPLATE="/aws/workspace/${SERVICE_NAME}/config/${SERVICE_NAME}.properties"
+PROPERTIES_DESTINATION="/aws/service/files/microservice.properties"
+VALUES_DESTINATION="/aws/service/values.yaml"
+
+HASH_POLICY=""
+MAGLEV=""
+if [[ "$SERVICE_NAME" == "eventappng" ]]; then
+  HASH_POLICY="lbHash:\\n          hashPolicies:\\n          - cookie:\\n              name: AWSALB\\n              path: / \\n              ttl: 3600s"
+  MAGLEV="loadBalancerConfig:\\n    maglev: {}"
+fi
+
+if [[ -z "$BRANCH" ]] || [[ -z "$AWS_ACCESS_KEY_ID" ]] || [[ -z "$AWS_SECRET_ACCESS_KEY" ]] || [[ -z "$VAULT_PASSWORD" ]]; then
+   echo -e "\nUsage:\n    deploy-service <service-name> <branch-name> <aws-access_key_id> <aws_secret_access_key> <vault_password>"
+   exit 1
+fi
+
+mkdir -p /aws/service/files
+
+cd ansible
+echo "$VAULT_PASSWORD" > /root/.vault-password
+
+echo "Running ansible with ${CR_CLUSTER} inventory to render properties file"
+ansible-playbook -i ${CR_CLUSTER} \
+    --vault-password-file /root/.vault-password \
+    plays/generate_properties.yml \
+    -e properties_template="${PROPERTIES_TEMPLATE}" \
+    -e properties_destination="${PROPERTIES_DESTINATION}"
+
+echo "Running ansible with ${CR_CLUSTER} inventory to render values.yaml file for Helm chart"
+ansible-playbook -i ${CR_CLUSTER} \
+    --vault-password-file /root/.vault-password \
+    plays/helm-charts-eks.yml  \
+    -e cr_label="${SERVICE_NAME}" \
+    -e values_destination="${VALUES_DESTINATION}"
+
+rm /root/.vault-password
+cd ..
+
+sed -i -e "s|{{ BRANCH }}|${BRANCH}|g" "/aws/service/templates/docker-secret.yml"
+
+/bin/bash
+
+echo "Deploy microservice: $SERVICE_NAME"
+helm template \
+  ${SERVICE_NAME} \
+  "/aws/service" \
+  --namespace ${BRANCH} \
+  --set image.tag=${IMAGE_TAG} \
+  --set app_name=${SERVICE_NAME} \
+  --values ${VALUES_DESTINATION} \
+  --dry-run | kubectl apply --namespace ${BRANCH} -f -
+
+sed -e "s|{{ SERVICE_NAME }}|${SERVICE_NAME}|g" -e "s|{{ BRANCH }}|${BRANCH}|g" -e "s|{{ MAGLEV }}|${MAGLEV}|g" "/aws/service/virtualservice/upstream.yml" | kubectl apply -f -
+sed -e "s|{{ SERVICE_NAME }}|${SERVICE_NAME}|g" -e "s|{{ BRANCH }}|${BRANCH}|g" -e "s|{{ hash_policy }}|${HASH_POLICY}|g" "/aws/service/virtualservice/virtualservice.yml" | kubectl apply -f -
+
+kubectl rollout status deployment ${SERVICE_NAME} --namespace ${BRANCH}
+

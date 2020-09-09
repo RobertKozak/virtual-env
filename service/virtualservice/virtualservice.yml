@@ -1,0 +1,24 @@
+apiVersion: gateway.solo.io/v1
+kind: VirtualService
+metadata:
+  name: {{ SERVICE_NAME }}-{{ BRANCH }}
+  namespace: gloo-system
+spec:
+  displayName: {{ SERVICE_NAME }}-{{ BRANCH }}
+  virtualHost:
+    domains:
+    - {{ SERVICE_NAME }}.{{ BRANCH }}.pool
+    - {{ SERVICE_NAME }}.{{ BRANCH }}.pool:80
+    - {{ SERVICE_NAME }}.{{ BRANCH }}.pool.c4-dev.chromeriver.com
+    - {{ SERVICE_NAME }}.{{ BRANCH }}.pool.c4-dev.chromeriver.com:80
+    routes:
+    - matchers:
+      - prefix: /
+      routeAction:
+        single:
+          upstream:
+            name: {{ BRANCH }}-{{ SERVICE_NAME }}-80
+            namespace: gloo-system
+      options:
+        timeout: "120s"
+        {{ hash_policy }}

@@ -1,0 +1,20 @@
+apiVersion: gloo.solo.io/v1
+kind: Upstream
+metadata:
+  annotations:
+    chromeriver.com/cluster: c4
+    chromeriver.com/env: dev
+  labels:
+    app: {{ SERVICE_NAME }}
+    discovered_by: kubernetesplugin
+  name: {{ BRANCH }}-{{ SERVICE_NAME }}-80
+  namespace: gloo-system
+spec:
+  discoveryMetadata: {}
+  kube:
+    selector:
+      app: {{ SERVICE_NAME }}
+    serviceName: {{ SERVICE_NAME }}
+    serviceNamespace: {{ BRANCH }}
+    servicePort: 80
+  {{ MAGLEV }}
