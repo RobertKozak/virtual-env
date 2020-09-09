@@ -2,6 +2,10 @@
 name: 'Virtual Dev Environments'
 description: 'Create virtual dev environments from branch'
 inputs:
+  action:
+    description: 'action to perfrom: create, delete, deploy'
+    required: true
+    default: ''
   branch:
     description: 'branch used as namespace in k8s'
     required: true
@@ -14,10 +18,26 @@ inputs:
     description: 'aws secret access key'
     required: true
     default: ''
+  vault_password:
+    description: 'password use for ansible vault'
+    required: false
+    default: ''
+  service_name:
+    description: 'name of service to deploy'
+    required: false
+    default: ''
+  version:
+    description: 'version of service to deploy'
+    required: false
+    default: '2.320.0'
+
 runs:
   using: 'docker'
   image: 'Dockerfile'
   args:
     - ${{ inputs.branch }}
     - ${{ inputs.aws_access_key_id }}
-    - ${{ inputs.aws_secret_access_key }}
+    - ${{ inputs.service_name }}
+    - ${{ inputs.vault_password }}
+    - ${{ inputs.service_name }}
+    - ${{ inputs.version }}
