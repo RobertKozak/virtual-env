@@ -34,15 +34,7 @@ version of service to deploy
 
 ## Example usage
 
-uses: actions/virtual-env@v1
-with:
-  action: create
-  branch: "$GITHUB_REF_NAME"
-  aws_access_key_id: "${secret.AWS_ACCESS_KEY_ID}"
-  aws_secret_access_key: "${secret.AWS_SECRET_ACCESS_KEY}"
-
-
-uses: actions/virtual-env@v1
+```uses: actions/virtual-env@v1
 with:
   action: "$GITHUB_EVENT_NAME"
   branch: "$GITHUB_REF_NAME"
@@ -57,4 +49,4 @@ with:
   aws_secret_access_key: "${secret.AWS_SECRET_ACCESS_KEY}"
   vault_password: "${secret.VAULT_PASSWORD}"
   service: ${GITHUB_REPOSITORY}
-  
+```
