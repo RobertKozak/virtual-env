@@ -29,7 +29,7 @@ inputs:
   version:
     description: 'version of service to deploy'
     required: false
-    default: '2.320.0'
+    default: 'latest'
 
 runs:
   using: 'docker'
