@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # set variables
-BRANCH=$1
-export AWS_ACCESS_KEY_ID=$2
-export AWS_SECRET_ACCESS_KEY=$3
-export AWS_DEFAULT_REGION=us-east-1
-VAULT_PASSWORD=$4
-SERVICE_NAME=$5
+# -------------
+
+BRANCH=${1,,}
+BRANCH=${BRANCH/refs\/heads\//}
+SERVICE_NAME=$2
+VAULT_PASSWORD=$3
 CR_CLUSTER=c4-dev
-IMAGE_TAG=$6
+IMAGE_TAG=latest
 
 PROPERTIES_TEMPLATE="/aws/workspace/${SERVICE_NAME}/config/${SERVICE_NAME}.properties"
 PROPERTIES_DESTINATION="/aws/service/files/microservice.properties"
@@ -21,10 +21,40 @@ if [[ "$SERVICE_NAME" == "eventappng" ]]; then
   MAGLEV="loadBalancerConfig:\\n    maglev: {}"
 fi
 
-if [[ -z "$BRANCH" ]] || [[ -z "$AWS_ACCESS_KEY_ID" ]] || [[ -z "$AWS_SECRET_ACCESS_KEY" ]] || [[ -z "$VAULT_PASSWORD" ]]; then
-   echo -e "\nUsage:\n    deploy-service <service-name> <branch-name> <aws-access_key_id> <aws_secret_access_key> <vault_password>"
+# check for vaild args
+# --------------------
+if [[ -z "$BRANCH" ]] || [[ -z "$SERVICE_NAME" ]] || [[ -z "$VAULT_PASSWORD" ]]; then
+   echo -e "\nUsage:\n    deploy-service <branch-name> <service-name> <vault_password>"
    exit 1
 fi
+
+env
+echo "BRANCH: $BRANCH"
+echo "SERVICE: $SERVICE_NAME"
+
+# check to see if virtual environment is ready
+# --------------------------------------------
+
+COUNT=0
+printf "Checking to see if virtual environment is ready."
+while true; do
+  if [[ ! -z $(kubectl get namespace/$BRANCH --ignore-not-found) ]]; then
+    printf "ready\n"
+    break
+  else
+    sleep 10
+    printf "."
+    ((COUNT++))
+    if [[ $COUNT -gt 10 ]]; then
+      printf "\nWARNING: Virtual Environment not ready yet.\n"
+      exit 0;
+    fi
+   fi
+done
+
+
+# Render properties & helmchart files
+# -----------------------------------
 
 mkdir -p /aws/service/files
 
@@ -50,7 +80,8 @@ cd ..
 
 sed -i -e "s|{{ BRANCH }}|${BRANCH}|g" "/aws/service/templates/docker-secret.yml"
 
-/bin/bash
+# Deploy service
+# --------------
 
 echo "Deploy microservice: $SERVICE_NAME"
 helm template \

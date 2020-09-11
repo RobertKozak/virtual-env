@@ -10,7 +10,11 @@ contexts:
     namespace: default
     user: arn:aws:eks:us-west-2:196666950711:cluster/c4-dev
   name: c4-dev
-current-context: c4-dev
+- context:
+    cluster: arn:aws:eks:us-west-2:196666950711:cluster/c4-dev
+    user: arn:aws:eks:us-west-2:196666950711:cluster/c4-dev
+  name: arn:aws:eks:us-west-2:196666950711:cluster/c4-dev
+current-context: arn:aws:eks:us-west-2:196666950711:cluster/c4-dev
 kind: Config
 preferences: {}
 users:
